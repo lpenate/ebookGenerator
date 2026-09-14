@@ -5,7 +5,7 @@ Convierte un EPUB en un audiolibro completo, en local y con la GPU del Mac (Meta
 1. **Extrae los capítulos** a texto plano (un `.txt` por capítulo), en el orden del *spine* y con los títulos de la tabla de contenidos (EPUB 2 y 3).
 2. **Extrae la portada** del EPUB.
 3. **Genera una locución** de cada capítulo con XTTS v2 y guarda **un audio por capítulo** (`.m4a`, AAC).
-4. **Empaqueta un audiolibro `.m4b`** con la estructura estándar: marcadores de capítulo, carátula, título, autor y género *Audiobook*. Se abre en Apple Books, Audiobookshelf, BookPlayer, VLC, etc.
+4. **Empaqueta un audiolibro `.m4b`** con la estructura estándar: marcadores de capítulo, carátula, título, autor y género *Audiobook*. Recomendamos reproducirlo con [BookPlayer](https://github.com/TortugaPower/BookPlayer); también se abre en Apple Books, Audiobookshelf, VLC, etc.
 
 Incluye una **CLI** y una **interfaz web** para subir varios EPUB, verlos avanzar capítulo a capítulo y descargar el resultado.
 
@@ -76,7 +76,7 @@ El repositorio incluye un EPUB de dominio público en `epub-sample/azul.epub` (*
    uv run ebook-generator sample "La noche caía despacio sobre la ciudad." --speaker "Luis Moray" -o out/luis.wav
    ```
 
-4. Genera el audiolibro completo (unas 4 horas de audio, 2 a 3 horas de proceso en un M5) y ábrelo en Apple Books:
+4. Genera el audiolibro completo (unas 4 horas de audio, 2 a 3 horas de proceso en un M5) y ábrelo con BookPlayer o Apple Books:
 
    ```bash
    uv run ebook-generator build epub-sample/azul.epub --chapters 2-40
@@ -196,6 +196,12 @@ out/<titulo-del-libro>/
     ├── 01-uno-el-despertar.m4a   # AAC mono 24 kHz, con título, número de pista, álbum y autor
     └── 02-dos-la-huida.m4a
 ```
+
+### Reproductor recomendado: BookPlayer
+
+Para escuchar los audiolibros generados recomendamos **[BookPlayer](https://github.com/TortugaPower/BookPlayer)** (iOS y macOS, gratuito y de código abierto). Respeta la estructura del M4B tal cual la generamos: navega por los marcadores de capítulo, muestra la carátula y los metadatos, recuerda la posición de lectura, permite ajustar la velocidad y programar el temporizador de sueño. Para pasarle el fichero basta con importarlo desde Archivos, iCloud Drive o AirDrop.
+
+Alternativas que también leen el M4B con sus capítulos: Apple Books, Audiobookshelf y VLC.
 
 ---
 

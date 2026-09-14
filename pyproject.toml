@@ -1,0 +1,29 @@
+[project]
+name = "ebook-generator"
+version = "0.2.0"
+description = "Convierte un EPUB en un audiolibro M4B con XTTS v2 en español: texto por capítulo, portada, un audio por capítulo y audiolibro final."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "coqui-tts[codec]>=0.27.5",
+    "torch>=2.4",
+    "torchaudio>=2.4",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "typer>=0.12",
+    "rich>=13.0",
+    "transformers>=4.57,<5",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.53.0",
+    "python-multipart>=0.0.32",
+]
+
+[project.scripts]
+ebook-generator = "ebook_generator.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ebook_generator"]

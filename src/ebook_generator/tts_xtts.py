@@ -117,14 +117,46 @@ _MODEL_CACHE: dict[str, object] = {}
 
 
 def _load_model(device: str):
-    """Carga XTTS una sola vez por proceso y dispositivo (tarda varios segundos y ocupa ~2 GB)."""
+    """Carga XTTS una sola vez por proceso y dispositivo.
+
+    Si el backend MPS de Apple falla con un error del tipo
+    `Output channels > 65536 not supported at the MPS device`,
+    se intenta el mismo modelo sobre CPU para no romper la síntesis.
+    """
     if device not in _MODEL_CACHE:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             from TTS.api import TTS
 
-            tts = TTS(MODEL_NAME)
-            tts.to(device)
+            try:
+                tts = TTS(MODEL_NAME)
+                try:
+                    tts.to(device)
+                except NotImplementedError as exc:
+                    message = str(exc)
+                    if device == "mps" and "not supported at the MPS device" in message:
+                        warnings.warn(
+                            "La ruta MPS de XTTS no soporta este modelo en este entorno; reintento en CPU.",
+                            RuntimeWarning,
+                            stacklevel=2,
+                        )
+                        tts = TTS(MODEL_NAME)
+                        tts.to("cpu")
+                    else:
+                        raise
+            except NotImplementedError as exc:
+                message = str(exc)
+                if device == "mps" and "not supported at the MPS device" in message:
+                    warnings.warn(
+                        "La ruta MPS de XTTS no soporta este modelo en este entorno; reintento en CPU.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    tts = TTS(MODEL_NAME)
+                    tts.to("cpu")
+                else:
+                    raise
+
         _MODEL_CACHE[device] = tts
     return _MODEL_CACHE[device]
 

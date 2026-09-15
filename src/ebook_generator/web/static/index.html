@@ -34,12 +34,13 @@
   button { font: inherit; border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer; }
   button.primary { background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 16px; font-weight: 600; }
   button.primary:disabled { opacity: .5; cursor: default; }
-  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 5px 10px; font-size: 13px; }
-  button.ghost:hover { color: var(--ink); border-color: var(--muted); }
-  a.btn { display: inline-block; background: var(--accent); color: var(--accent-ink); text-decoration: none; padding: 7px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 7px 12px; font-size: 13px; border-radius: 999px; transition: border-color .2s, color .2s, background .2s; }
+  button.ghost:hover { color: var(--ink); border-color: var(--muted); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  a.btn { display: inline-block; background: var(--accent); color: var(--accent-ink); text-decoration: none; padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 700; }
   .jobs { display: flex; flex-direction: column; gap: 14px; }
   .job { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: var(--panel); }
   .job header { padding: 0; margin: 0; display: flex; align-items: flex-start; gap: 12px; }
+  .status.paused { color: var(--warn); }
   .cover { width: 56px; height: 80px; object-fit: cover; border-radius: 4px; background: var(--bar); flex: none; }
   .job h3 { margin: 0; font-size: 16px; }
   .job .meta { color: var(--muted); font-size: 13px; }
@@ -59,14 +60,33 @@
   .chapters li.done .dot, .chapters li.skipped .dot { background: var(--ok); }
   .chapters li.running .dot { background: var(--warn); }
   .chapters a { color: inherit; }
-  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; padding: 8px; border-radius: 12px; background: color-mix(in srgb, var(--bar) 70%, transparent); border: 1px solid var(--line); }
+  .actions .btn, .actions .ghost { min-height: 36px; }
   details { margin-top: 10px; }
   summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   pre.log { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; max-height: 220px; overflow: auto; font-size: 12px; line-height: 1.45; white-space: pre-wrap; margin: 8px 0 0; }
   .empty { color: var(--muted); text-align: center; padding: 40px 0; }
   .error-box { color: var(--err); font-size: 13px; margin-top: 8px; }
+  .backend { margin-bottom: 16px; }
+  .backend h2 { display: flex; align-items: center; gap: 8px; }
+  .backend .led { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .backend.offline .led { background: var(--err); box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 25%, transparent); }
+  .backend.busy .led { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 25%, transparent); }
+  .backend .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; }
+  .backend .kv small { display: block; color: var(--muted); font-size: 12px; }
+  .backend .kv strong { font-weight: 600; font-size: 14px; word-break: break-word; }
+  .backend .offline-msg { color: var(--err); font-size: 13px; margin-top: 6px; }
+  .backend details { margin-top: 12px; }
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 50; }
+  .modal-backdrop.open { display: flex; }
+  .modal-card { width: min(840px, calc(100vw - 40px)); max-height: min(760px, calc(100vh - 80px)); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 50px rgba(0,0,0,.4); color: var(--ink); overflow: hidden; }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .modal-head h3 { margin: 0; font-size: 16px; }
+  .modal-head button { background: transparent; color: var(--ink); border: 0; font-size: 22px; cursor: pointer; }
+  .modal-body { padding: 14px 18px; }
+  .modal-body pre { max-height: 440px; overflow: auto; white-space: pre-wrap; background: var(--bg); color: var(--ink); padding: 12px; border-radius: 8px; border: 1px solid var(--line); font: 12px/1.45 "SFMono-Regular", Consolas, monospace; margin: 0; }
 </style>
 </head>
 <body>
@@ -76,61 +96,212 @@
 </header>
 <main>
   <section class="panel">
-    <h2>Nuevo audiolibro</h2>
+    <h2 id="newAudiobookTitle">Nuevo audiolibro</h2>
     <form id="form">
       <div class="drop" id="drop">
         <input type="file" id="file" accept=".epub" multiple>
         <strong id="drop-title">Arrastra aquí tus EPUB</strong>
-        <small>o haz clic para elegirlos</small>
+        <small id="drop-help">o haz clic para elegirlos</small>
       </div>
-      <label for="speaker">Hablante</label>
+      <label id="speakerLabel" for="speaker">Hablante</label>
       <select id="speaker" name="speaker"></select>
       <div class="row">
         <div>
-          <label for="language">Idioma</label>
+          <label id="languageLabel" for="language">Idioma</label>
           <select id="language" name="language"><option value="">Auto (del EPUB)</option></select>
         </div>
         <div>
-          <label for="speed">Velocidad</label>
+          <label id="speedLabel" for="speed">Velocidad</label>
           <input type="number" id="speed" name="speed" min="0.5" max="2" step="0.05" value="1.0">
         </div>
       </div>
       <div class="row">
         <div>
-          <label for="min_words">Palabras mín. / capítulo</label>
+          <label id="minWordsLabel" for="min_words">Palabras mín. / capítulo</label>
           <input type="number" id="min_words" name="min_words" min="0" step="10" value="100">
         </div>
         <div>
-          <label for="chapters">Capítulos (opcional)</label>
+          <label id="chaptersLabel" for="chapters">Capítulos (opcional)</label>
           <input type="text" id="chapters" name="chapters" placeholder="1-3,7">
         </div>
       </div>
       <div class="row">
         <div>
-          <label for="toc_depth">Nivel de índice = capítulo</label>
+          <label id="tocDepthLabel" for="toc_depth">Nivel de índice = capítulo</label>
           <select id="toc_depth" name="toc_depth"><option value="1">1 (primer nivel)</option><option value="2">2</option><option value="3">3</option></select>
         </div>
+        <div>
+          <label id="uiLanguageLabel" for="uiLanguage">Idioma de la UI</label>
+          <select id="uiLanguage" name="uiLanguage">
+            <option value="es" selected>Español</option>
+            <option value="en">English</option>
+          </select>
+        </div>
       </div>
-      <label class="check"><input type="checkbox" id="audiobook" name="audiobook" checked> Generar M4B al terminar</label>
+      <div class="row">
+        <div>
+          <label id="deviceLabel" for="device">Dispositivo</label>
+          <select id="device" name="device">
+            <option value="auto" selected>auto</option>
+            <option value="m1" id="deviceM1Option">m1 · Apple Silicon (GPT en GPU, vocoder en CPU)</option>
+            <option value="mps">mps</option>
+            <option value="cpu">cpu</option>
+            <option value="cuda">cuda</option>
+          </select>
+          <small id="deviceHint" class="meta" style="display:block;font-size:12px;margin-top:4px"></small>
+        </div>
+      </div>
+      <label class="check" id="audiobookLabel"><input type="checkbox" id="audiobook" name="audiobook" checked> <span id="audiobookText">Generar M4B al terminar</span></label>
       <button class="primary" type="submit" id="submit" disabled>Añadir a la cola</button>
     </form>
   </section>
 
   <section>
+    <div class="panel backend" id="backend">
+      <h2><span class="led"></span><span id="backendTitle">Estado del backend</span> <span id="backendState" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
+      <div class="grid" id="backendGrid"></div>
+      <div class="offline-msg" id="backendOffline" hidden></div>
+      <details><summary id="backendEventsSummary">Registro global del servidor</summary><pre class="log" id="backendEvents"></pre></details>
+    </div>
     <div class="jobs" id="jobs"><div class="empty">Sin trabajos todavía.</div></div>
   </section>
 </main>
+<div class="modal-backdrop" id="logModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="logTitle">Registro del backend</h3>
+      <button type="button" id="logClose" aria-label="Cerrar">×</button>
+    </div>
+    <div class="modal-body">
+      <pre id="logContent"></pre>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
 const $ = (s, el = document) => el.querySelector(s);
 const jobsEl = $('#jobs'), fileInput = $('#file'), drop = $('#drop'), submit = $('#submit');
 let files = [];
+let messages = {};
+window.currentLang = 'es';
 
-const STATUS_LABEL = { queued: 'en cola', extracting: 'extrayendo', synthesizing: 'sintetizando', packing: 'empaquetando', done: 'terminado', error: 'error', cancelled: 'cancelado' };
+const FALLBACK_MESSAGES = {
+  title: 'Nuevo audiolibro',
+  dropTitle: 'Arrastra aquí tus EPUB',
+  dropHelp: 'o haz clic para elegirlos',
+  speaker: 'Hablante',
+  language: 'Idioma',
+  speed: 'Velocidad',
+  minWords: 'Palabras mín. / capítulo',
+  chapters: 'Capítulos (opcional)',
+  tocDepth: 'Nivel de índice = capítulo',
+  device: 'Dispositivo',
+  uiLanguage: 'Idioma de la UI',
+  audiobook: 'Generar M4B al terminar',
+  submit: 'Añadir a la cola',
+  empty: 'Sin trabajos todavía.',
+  logTitle: 'Registro del backend',
+  logSummary: 'Registro',
+  logFallback: 'No hay trazas del backend para este trabajo.',
+  seeLog: 'Ver registro',
+  cancel: 'Cancelar',
+  remove: 'Quitar de la lista',
+  downloadM4B: 'Descargar M4B',
+  chaptersLabel: 'capítulos',
+  chapter: 'Capítulo {n}',
+  jobsAdded: 'trabajo(s) añadido(s)',
+  noJobError: 'No se pudo recuperar el registro del trabajo',
+  deviceM1: 'm1 · Apple Silicon (GPT en GPU, vocoder en CPU)',
+  deviceHintM1: 'Recomendado en este Mac: este PyTorch no puede ejecutar el vocoder en la GPU con frases largas; con «mps» o «auto» la síntesis acaba cayendo a CPU.',
+  deviceHint: 'Dispositivo recomendado en este equipo: {device}.',
+  pause: 'Pausar',
+  resume: 'Reanudar',
+  paused: 'en pausa',
+  pausing: 'pausando al acabar el fragmento…',
+  pauseRequested: 'Pausa solicitada: se detiene al acabar el fragmento en curso',
+  resumed: 'Reanudado',
+  submitting: 'Enviando…',
+  submitError: 'No se pudo enviar {name}: {error}',
+  fragment: 'fragmento',
+  cancelling: 'Cancelando…',
+  cancelRequested: 'Cancelación solicitada',
+  cancelFailed: 'No se pudo cancelar',
+  backendTitle: 'Estado del backend',
+  backendEvents: 'Registro global del servidor',
+  backendOffline: 'Sin conexión con el servidor. Arráncalo con `uv run ebook-generator serve`. Último contacto: {when}.',
+  backendNever: 'nunca',
+  workerIdle: 'en espera',
+  workerBusy: 'procesando',
+  workerDead: 'hilo de síntesis caído: reinicia el servidor',
+  workerStarting: 'arrancando',
+  kWorker: 'Worker',
+  kCurrent: 'Trabajo actual',
+  kQueue: 'En cola',
+  kProcessed: 'Procesados',
+  kDevice: 'Dispositivo por defecto',
+  kModel: 'Modelo XTTS',
+  modelNotLoaded: 'sin cargar (se carga con el primer trabajo)',
+  modelLoadedOn: 'cargado en {devices}',
+  kUptime: 'Servidor activo',
+  kOutDir: 'Salida',
+  none: 'ninguno'
+};
+
+const STATUS_LABEL = {
+  es: { queued: 'en cola', extracting: 'extrayendo', synthesizing: 'sintetizando', packing: 'empaquetando', done: 'terminado', error: 'error', cancelled: 'cancelado' },
+  en: { queued: 'queued', extracting: 'extracting', synthesizing: 'synthesizing', packing: 'packing', done: 'done', error: 'error', cancelled: 'cancelled' }
+};
+
+async function loadTranslations(lang = 'es') {
+  try {
+    const resp = await fetch(`/api/i18n/${lang}.json`);
+    messages = resp.ok ? await resp.json() : FALLBACK_MESSAGES;
+  } catch (e) {
+    messages = FALLBACK_MESSAGES;
+  }
+  applyTranslations(lang);
+}
+
+function t(key) {
+  return messages[key] || key;
+}
+
+function applyTranslations(lang) {
+  window.currentLang = lang;
+  document.documentElement.lang = lang;
+  const texts = messages;
+  if (!texts) return;
+  $('#newAudiobookTitle').textContent = texts.title;
+  $('#drop-title').textContent = texts.dropTitle;
+  $('#drop-help').textContent = texts.dropHelp;
+  $('#speakerLabel').textContent = texts.speaker;
+  $('#languageLabel').textContent = texts.language;
+  $('#speedLabel').textContent = texts.speed;
+  $('#minWordsLabel').textContent = texts.minWords;
+  $('#chaptersLabel').textContent = texts.chapters;
+  $('#tocDepthLabel').textContent = texts.tocDepth;
+  $('#uiLanguageLabel').textContent = texts.uiLanguage;
+  $('#deviceLabel').textContent = texts.device;
+  $('#deviceM1Option').textContent = texts.deviceM1;
+  renderDeviceHint();
+  $('#audiobookText').textContent = texts.audiobook;
+  $('#backendTitle').textContent = texts.backendTitle;
+  $('#backendEventsSummary').textContent = texts.backendEvents;
+  $('#submit').textContent = texts.submit;
+}
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2600); }
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+let recommendedDevice = null;
+
+function renderDeviceHint() {
+  const hint = $('#deviceHint');
+  if (!hint) return;
+  if (!recommendedDevice) { hint.textContent = ''; return; }
+  hint.textContent = recommendedDevice === 'm1' ? t('deviceHintM1') : t('deviceHint').replace('{device}', recommendedDevice);
+}
 
 async function loadConfig() {
   const cfg = await (await fetch('/api/config')).json();
@@ -138,11 +309,16 @@ async function loadConfig() {
   cfg.speakers.forEach((name) => { const o = new Option(name, name, name === cfg.default_speaker, name === cfg.default_speaker); sp.add(o); });
   const lg = $('#language');
   cfg.languages.forEach((code) => lg.add(new Option(code, code)));
+  // El backend sondea el equipo: si MPS existe pero conv1d está limitado, recomienda el modo m1.
+  recommendedDevice = cfg.recommended_device || null;
+  const dev = $('#device');
+  if (recommendedDevice && [...dev.options].some((o) => o.value === recommendedDevice)) dev.value = recommendedDevice;
+  renderDeviceHint();
 }
 
 function setFiles(list) {
   files = [...list].filter((f) => f.name.toLowerCase().endsWith('.epub'));
-  $('#drop-title').textContent = files.length ? files.map((f) => f.name).join(', ') : 'Arrastra aquí tus EPUB';
+  $('#drop-title').textContent = files.length ? files.map((f) => f.name).join(', ') : t('dropTitle');
   submit.disabled = files.length === 0;
 }
 drop.addEventListener('click', () => fileInput.click());
@@ -153,7 +329,12 @@ drop.addEventListener('drop', (e) => setFiles(e.dataTransfer.files));
 
 $('#form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (!files.length) return;
   submit.disabled = true;
+  const originalLabel = submit.textContent;
+  submit.textContent = t('submitting');
+  let added = 0;
+  try {
   for (const file of files) {
     const fd = new FormData();
     fd.append('file', file);
@@ -164,58 +345,190 @@ $('#form').addEventListener('submit', async (e) => {
     fd.append('chapters', $('#chapters').value);
     fd.append('toc_depth', $('#toc_depth').value);
     fd.append('audiobook', $('#audiobook').checked ? 'true' : 'false');
-    const res = await fetch('/api/jobs', { method: 'POST', body: fd });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); toast(`Error: ${err.detail || res.status}`); }
+    fd.append('device', $('#device').value);
+    let res;
+    try {
+      res = await fetch('/api/jobs', { method: 'POST', body: fd });
+    } catch (err) {
+      toast(t('submitError').replace('{name}', file.name).replace('{error}', err.message || err));
+      continue;
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast(t('submitError').replace('{name}', file.name).replace('{error}', err.detail || res.status));
+      continue;
+    }
+    added++;
   }
-  toast(`${files.length} trabajo(s) añadido(s)`);
-  setFiles([]); fileInput.value = '';
-  refresh();
+  if (added) toast(`${added} ${t('jobsAdded')}`);
+  } catch (err) {
+    console.error(err);
+    toast(t('submitError').replace('{name}', '').replace('{error}', err.message || err));
+  } finally {
+    submit.textContent = originalLabel;
+    setFiles([]); fileInput.value = '';
+    refresh();
+  }
 });
 
-async function cancel(id) { await fetch(`/api/jobs/${id}/cancel`, { method: 'POST' }); refresh(); }
-async function remove(id) { await fetch(`/api/jobs/${id}`, { method: 'DELETE' }); refresh(); }
+async function cancel(id, el) {
+  if (el) {
+    el.disabled = true;
+    el.textContent = t('cancelling');
+  }
+  try {
+    const res = await fetch(`/api/jobs/${id}/cancel`, { method: 'POST' });
+    toast(res.ok ? t('cancelRequested') : t('cancelFailed'));
+  } catch (e) {
+    toast(t('cancelFailed'));
+  }
+  refresh();
+}
+async function pauseJob(id, resume = false) {
+  try {
+    const res = await fetch(`/api/jobs/${id}/${resume ? 'resume' : 'pause'}`, { method: 'POST' });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); toast(err.detail || `HTTP ${res.status}`); }
+    else toast(resume ? t('resumed') : t('pauseRequested'));
+  } catch (e) {
+    toast(t('cancelFailed'));
+  }
+  refresh();
+}
+async function remove(id, force = false) {
+  await fetch(`/api/jobs/${id}?force=${force ? 'true' : 'false'}`, { method: 'DELETE' });
+  refresh();
+}
 
 function renderJob(j) {
   const pct = Math.round((j.progress || 0) * 100);
   const active = ['queued', 'extracting', 'synthesizing', 'packing'].includes(j.status);
   const cover = j.cover ? `<img class="cover" src="/api/jobs/${j.id}/files/${esc(j.cover)}" alt="">` : '<div class="cover"></div>';
   const current = j.current_chapter ? j.chapters.find((c) => c.index === j.current_chapter) : null;
-  const fragment = current && j.fragment_total ? ` · fragmento ${j.fragment_done}/${j.fragment_total}` : '';
+  const fragment = current && j.fragment_total ? ` · ${t('fragment')} ${j.fragment_done}/${j.fragment_total}` : '';
   const chapters = j.chapters.length ? `<ul class="chapters">${j.chapters.map((c) => `
       <li class="${c.status}"><span class="dot"></span>${c.index}. ${c.audio_file ? `<a href="/api/jobs/${j.id}/files/${esc(c.audio_file)}">${esc(c.title)}</a>` : esc(c.title)}</li>`).join('')}</ul>` : '';
+  const lang = window.currentLang || 'es';
+  const status = j.paused ? t('paused') : j.pause_requested && active ? t('pausing') : (STATUS_LABEL[lang][j.status] || j.status);
+  const pauseButton = active
+    ? (j.pause_requested
+        ? `<button class="ghost" onclick="pauseJob('${j.id}', true)">${t('resume')}</button>`
+        : `<button class="ghost" onclick="pauseJob('${j.id}')">${t('pause')}</button>`)
+    : '';
+  const cancelButton = active ? `<button class="ghost" data-cancel="${j.id}" onclick="cancel('${j.id}', this)">${t('cancel')}</button>` : `<button class="ghost" onclick="remove('${j.id}')">${t('remove')}</button>`;
+  const logLines = Array.isArray(j.log) ? j.log : [];
+  const logPreview = logLines.length ? esc(logLines.slice(-3).join('\n')) : esc(t('logFallback'));
+  const logCount = logLines.length;
+  const progressText = `${pct}% · ${j.chapters_done || 0}/${j.chapters.length || 0} ${lang === 'en' ? t('chaptersLabel') : 'capítulos'}`;
+  const currentTitle = j.status === 'synthesizing' && current ? `${t('chapter').replace('{n}', current.index)}: ${esc(current.title)}${fragment}` : status;
   return `<article class="job" data-id="${j.id}">
     <header>${cover}
       <div style="flex:1;min-width:0">
-        <h3>${esc(j.title || j.filename)} <span class="status ${j.status}">${STATUS_LABEL[j.status] || j.status}</span></h3>
-        <div class="meta">${esc(j.author || '')}${j.author ? ' · ' : ''}${j.chapters.length ? `${j.chapters_done}/${j.chapters.length} capítulos` : esc(j.filename)}</div>
+        <h3>${esc(j.title || j.filename)} <span class="status ${j.status}">${status}</span></h3>
+        <div class="meta">${esc(j.author || '')}${j.author ? ' · ' : ''}${j.chapters.length ? `${j.chapters_done}/${j.chapters.length} ${lang === 'en' ? t('chaptersLabel') : 'capítulos'}` : esc(j.filename)}</div>
         ${active ? `<div class="bar"><div style="width:${pct}%"></div></div>
-        <div class="current">${j.status === 'synthesizing' && current ? `Capítulo ${current.index}: ${esc(current.title)}${fragment}` : STATUS_LABEL[j.status]} · ${pct}%</div>
+        <div class="current">${currentTitle} · ${progressText}</div>
         ${current && j.fragment_total ? `<div class="bar thin"><div style="width:${Math.round(100 * j.fragment_done / j.fragment_total)}%"></div></div>` : ''}` : ''}
         ${j.error ? `<div class="error-box">${esc(j.error)}</div>` : ''}
       </div>
     </header>
     ${chapters}
     <div class="actions">
-      ${j.audiobook ? `<a class="btn" href="/api/jobs/${j.id}/files/${esc(j.audiobook)}">Descargar M4B</a>` : ''}
+      ${j.audiobook ? `<a class="btn" href="/api/jobs/${j.id}/files/${esc(j.audiobook)}">${t('downloadM4B')}</a>` : ''}
       ${j.book_dir && j.status === 'done' ? `<a class="btn" href="/api/jobs/${j.id}/files/book.json" style="opacity:.8">book.json</a>` : ''}
-      ${active ? `<button class="ghost" onclick="cancel('${j.id}')">Cancelar</button>` : `<button class="ghost" onclick="remove('${j.id}')">Quitar de la lista</button>`}
+      ${pauseButton}
+      ${cancelButton}
+      <button class="ghost" onclick="openLogModal('${j.id}')">${t('seeLog')}</button>
       ${j.book_dir ? `<span class="meta" style="font-size:12px">${esc(j.book_dir)}</span>` : ''}
     </div>
-    <details ${active ? 'open' : ''}><summary>Registro (${j.log.length})</summary><pre class="log">${esc(j.log.slice(-60).join('\n'))}</pre></details>
+    <details open><summary>${t('logSummary')} (${logCount})</summary><pre class="log">${logPreview}</pre></details>
   </article>`;
 }
 
 let openLogs = new Set();
-async function refresh() {
-  try {
-    const jobs = await (await fetch('/api/jobs')).json();
-    document.querySelectorAll('.job details[open]').forEach((d) => openLogs.add(d.closest('.job').dataset.id));
-    jobsEl.innerHTML = jobs.length ? jobs.map(renderJob).join('') : '<div class="empty">Sin trabajos todavía.</div>';
-    document.querySelectorAll('.job').forEach((el) => { if (openLogs.has(el.dataset.id)) el.querySelector('details').open = true; });
-    document.querySelectorAll('pre.log').forEach((p) => { p.scrollTop = p.scrollHeight; });
-  } catch (e) { /* servidor reiniciándose */ }
+function openLogModal(jobId) {
+  fetch(`/api/jobs/${jobId}`)
+    .then((r) => r.ok ? r.json() : Promise.reject(r))
+    .then((job) => {
+      const lines = job.log && job.log.length ? job.log.join('\n') : t('logFallback');
+      $('#logContent').textContent = lines;
+      $('#logTitle').textContent = `${job.filename || (window.currentLang === 'en' ? 'Job' : 'Trabajo')} · ${t('logSummary')}`;
+      $('#logModal').classList.add('open');
+    })
+    .catch(() => toast(t('noJobError')));
 }
 
+$('#logClose').addEventListener('click', () => $('#logModal').classList.remove('open'));
+$('#logModal').addEventListener('click', (e) => { if (e.target === $('#logModal')) $('#logModal').classList.remove('open'); });
+
+$('#uiLanguage').addEventListener('change', (e) => {
+  const lang = e.target.value || 'es';
+  loadTranslations(lang);
+  refresh();
+});
+
+let lastContact = null;
+
+function fmtUptime(s) {
+  s = Number(s) || 0;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : m ? `${m}m ${s % 60}s` : `${s}s`;
+}
+
+function renderBackend(st) {
+  const panel = $('#backend');
+  panel.classList.remove('offline');
+  $('#backendOffline').hidden = true;
+  const w = st.worker || {};
+  const stateLabel = { idle: t('workerIdle'), busy: t('workerBusy'), paused: t('paused'), dead: t('workerDead'), starting: t('workerStarting') }[w.state] || w.state;
+  panel.classList.toggle('busy', w.state === 'busy');
+  if (w.state === 'dead') panel.classList.add('offline');
+  $('#backendState').textContent = `· ${stateLabel}`;
+  const loaded = (st.device && st.device.model_loaded_on) || [];
+  const kv = (k, v) => `<div class="kv"><small>${esc(k)}</small><strong>${v}</strong></div>`;
+  $('#backendGrid').innerHTML = [
+    kv(t('kWorker'), esc(stateLabel)),
+    kv(t('kCurrent'), w.current_job ? `${esc(w.current_title || w.current_job)} <span class="meta">(${esc(w.current_job)})</span>` : esc(t('none'))),
+    kv(t('kQueue'), w.queue_size ?? 0),
+    kv(t('kProcessed'), w.processed ?? 0),
+    kv(t('kDevice'), esc(st.device ? st.device.default : '?')),
+    kv(t('kModel'), loaded.length ? esc(t('modelLoadedOn').replace('{devices}', loaded.join(', '))) : esc(t('modelNotLoaded'))),
+    kv(t('kUptime'), fmtUptime(st.uptime_s)),
+    kv(t('kOutDir'), `<span class="meta" style="font-size:12px">${esc(st.out_dir || '')}</span>`),
+  ].join('');
+  const pre = $('#backendEvents');
+  const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 8;
+  pre.textContent = (st.events || []).slice(-80).join('\n');
+  if (atBottom) pre.scrollTop = pre.scrollHeight;
+}
+
+function renderOffline(err) {
+  const panel = $('#backend');
+  panel.classList.add('offline');
+  panel.classList.remove('busy');
+  $('#backendState').textContent = '';
+  const when = lastContact ? lastContact.toLocaleTimeString() : t('backendNever');
+  const box = $('#backendOffline');
+  box.textContent = t('backendOffline').replace('{when}', when) + (err && err.message ? ` (${err.message})` : '');
+  box.hidden = false;
+}
+
+async function refresh() {
+  try {
+    const [jobsRes, statusRes] = await Promise.all([fetch('/api/jobs'), fetch('/api/status')]);
+    if (!jobsRes.ok) throw new Error(`HTTP ${jobsRes.status}`);
+    const jobs = await jobsRes.json();
+    lastContact = new Date();
+    document.querySelectorAll('.job details[open]').forEach((d) => openLogs.add(d.closest('.job').dataset.id));
+    jobsEl.innerHTML = jobs.length ? jobs.map(renderJob).join('') : `<div class="empty">${t('empty')}</div>`;
+    document.querySelectorAll('.job').forEach((el) => { if (openLogs.has(el.dataset.id)) el.querySelector('details').open = true; });
+    document.querySelectorAll('pre.log').forEach((p) => { p.scrollTop = p.scrollHeight; });
+    if (statusRes.ok) renderBackend(await statusRes.json());
+  } catch (e) {
+    renderOffline(e);
+  }
+}
+
+loadTranslations('es');
 loadConfig();
 refresh();
 setInterval(refresh, 1500);

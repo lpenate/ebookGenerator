@@ -1,13 +1,14 @@
 """Interfaz web: subir EPUB, seguir el progreso y descargar el audiolibro."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Annotated, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
-from ..tts_xtts import DEFAULT_SPEAKER, SUPPORTED_LANGUAGES, XTTS_SPEAKERS
+from ..tts_xtts import DEFAULT_SPEAKER, DEVICE_CHOICES, SUPPORTED_LANGUAGES, XTTS_SPEAKERS, recommended_device
 from .jobs import JobManager, JobOptions
 
 STATIC = Path(__file__).parent / "static"
@@ -21,17 +22,39 @@ def create_app(out_dir: Path = Path("out"), uploads_dir: Path | None = None) -> 
     def index() -> str:
         return (STATIC / "index.html").read_text(encoding="utf-8")
 
+    @app.get("/api/i18n/{lang}.json")
+    def translation(lang: str) -> JSONResponse:
+        if lang not in {"es", "en"}:
+            raise HTTPException(404, "Idioma no soportado")
+        path = STATIC / "i18n" / f"{lang}.json"
+        if not path.exists():
+            raise HTTPException(404, "Fichero de traducción no encontrado")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return JSONResponse(data)
+
     @app.get("/api/config")
     def config() -> dict:
         return {
             "speakers": XTTS_SPEAKERS,
             "default_speaker": DEFAULT_SPEAKER,
             "languages": sorted(SUPPORTED_LANGUAGES),
+            "devices": list(DEVICE_CHOICES),
+            "recommended_device": recommended_device(),
         }
+
+    @app.get("/api/status")
+    def status() -> dict:
+        """Estado interno del backend: worker, cola, dispositivo, modelo cargado y registro global."""
+        return manager.status()
 
     @app.get("/api/jobs")
     def list_jobs() -> list[dict]:
         return [j.to_dict() for j in manager.list()]
+
+    @app.post("/api/jobs/purge")
+    def purge_jobs(force: bool = False) -> dict:
+        removed = manager.purge_stale_terminal_jobs() if not force else manager.delete_all(force=True)
+        return {"ok": True, "removed": removed}
 
     @app.post("/api/jobs", status_code=201)
     async def create_job(
@@ -63,7 +86,7 @@ def create_app(out_dir: Path = Path("out"), uploads_dir: Path | None = None) -> 
             toc_depth=max(1, min(4, toc_depth)),
             chapters=chapters.strip() or None,
             audiobook=audiobook,
-            device=device if device in ("auto", "mps", "cpu", "cuda") else "auto",
+            device=device if device in DEVICE_CHOICES else "auto",
         )
         job = manager.submit(name, data, options)
         return job.to_dict()
@@ -81,9 +104,21 @@ def create_app(out_dir: Path = Path("out"), uploads_dir: Path | None = None) -> 
             raise HTTPException(409, "No se puede cancelar este trabajo")
         return {"ok": True}
 
+    @app.post("/api/jobs/{job_id}/pause")
+    def pause_job(job_id: str) -> dict:
+        if not manager.pause(job_id):
+            raise HTTPException(409, "Solo se puede pausar un trabajo activo")
+        return {"ok": True}
+
+    @app.post("/api/jobs/{job_id}/resume")
+    def resume_job(job_id: str) -> dict:
+        if not manager.resume(job_id):
+            raise HTTPException(409, "El trabajo no está pausado")
+        return {"ok": True}
+
     @app.delete("/api/jobs/{job_id}")
-    def delete_job(job_id: str) -> dict:
-        if not manager.delete(job_id):
+    def delete_job(job_id: str, force: bool = False) -> dict:
+        if not manager.delete(job_id, force=force):
             raise HTTPException(409, "No se puede borrar un trabajo en curso")
         return {"ok": True}
 

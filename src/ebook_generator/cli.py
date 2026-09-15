@@ -76,7 +76,7 @@ def build(
     speaker_wav: Annotated[Optional[Path], typer.Option("--speaker-wav", exists=True, dir_okay=False, help="WAV de 6-30 s para clonar una voz")] = None,
     language: Annotated[Optional[str], typer.Option("--language", "-l", help="Idioma XTTS (por defecto el del EPUB, o 'es')")] = None,
     speed: Annotated[float, typer.Option(help="Velocidad relativa, 1 = normal")] = 1.0,
-    device: Annotated[str, typer.Option(help="auto | mps | cpu | cuda")] = "auto",
+    device: Annotated[str, typer.Option(help="auto | m1 | mps | cpu | cuda (m1: Apple Silicon, GPT en MPS y vocoder en CPU)")] = "auto",
     chapters: Annotated[Optional[str], typer.Option("--chapters", "-c", help='Capítulos a generar, p. ej. "1-3,7"')] = None,
     min_words: Annotated[int, typer.Option(help="Palabras mínimas para considerar capítulo")] = 100,
     toc_depth: Annotated[int, typer.Option(help="Nivel de la tabla de contenidos que define un capítulo")] = 1,
@@ -130,7 +130,7 @@ def pack(
 
 @app.command()
 def voices(
-    device: Annotated[str, typer.Option(help="auto | mps | cpu")] = "cpu",
+    device: Annotated[str, typer.Option(help="auto | m1 | mps | cpu")] = "cpu",
 ) -> None:
     """Lista los hablantes preentrenados de XTTS v2."""
     from .tts_xtts import DEFAULT_SPEAKER, XttsEngine
@@ -149,7 +149,7 @@ def sample(
     speaker_wav: Annotated[Optional[Path], typer.Option("--speaker-wav", exists=True)] = None,
     language: Annotated[str, typer.Option("--language", "-l")] = "es",
     speed: Annotated[float, typer.Option()] = 1.0,
-    device: Annotated[str, typer.Option()] = "auto",
+    device: Annotated[str, typer.Option(help="auto | m1 | mps | cpu | cuda")] = "auto",
 ) -> None:
     """Genera un WAV corto para probar un hablante o una voz clonada."""
     import time
@@ -160,7 +160,7 @@ def sample(
     engine = XttsEngine(speaker=speaker, speaker_wav=str(speaker_wav) if speaker_wav else None, language=language, speed=speed, device=device)
     t0 = time.time()
     engine.load()
-    log(f"Modelo cargado en {time.time() - t0:.1f}s ({engine.device})")
+    log(f"Modelo cargado en {time.time() - t0:.1f}s ({engine.device_label})")
     t0 = time.time()
     audio = engine.synthesize_text(text)
     elapsed = time.time() - t0

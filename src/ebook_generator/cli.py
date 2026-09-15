@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import os
 import re
+import shutil
+import signal
+import subprocess
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -162,6 +166,39 @@ def sample(
     elapsed = time.time() - t0
     write_wav(out, audio, SAMPLE_RATE)
     log(f"{out} — {audio.size / SAMPLE_RATE:.1f}s de audio en {elapsed:.1f}s")
+
+
+@app.command()
+def kill_port(
+    port: Annotated[int, typer.Option("--port", "-p", help="Puerto TCP a limpiar")] = 8000,
+    force: Annotated[bool, typer.Option("--force", "-f", help="Usa SIGKILL en lugar de SIGTERM")] = False,
+) -> None:
+    """Mata los procesos que escuchen el puerto HTTP de la UI (por defecto 8000)."""
+    command = shutil.which("lsof")
+    if command:
+        proc = subprocess.run([command, "-ti", f"tcp:{port}"], text=True, capture_output=True)
+        stdout = (proc.stdout or "").strip()
+        pids = [int(p) for p in stdout.splitlines() if p.strip().isdigit()]
+    elif shutil.which("fuser"):
+        proc = subprocess.run([shutil.which("fuser"), "-k", f"{port}/tcp"], text=True, capture_output=True)
+        pids = []
+        if proc.returncode != 0:
+            pids = []
+    else:
+        typer.echo("No hay lsof ni fuser en PATH; no puedo limpiar el puerto.")
+        raise typer.Exit(code=2)
+
+    if not pids:
+        typer.echo(f"No hay procesos escuchando el puerto {port}.")
+        return
+
+    sig = signal.SIGKILL if force else signal.SIGTERM
+    for pid in pids:
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            continue
+    typer.echo(f"Se enviaron {sig.name if hasattr(sig, 'name') else str(sig)} a los procesos {pids} del puerto {port}.")
 
 
 @app.command()

@@ -155,14 +155,48 @@ def _read_toc(opf, manifest, resolve, read) -> list[TocEntry]:
             entries = _parse_nav(nav_bytes, posixpath.dirname(nav_path))
             if entries:
                 return entries
+
     ncx_id = opf.xpath("string(//opf:spine/@toc)", namespaces=NS)
     ncx = manifest.get(ncx_id) or next((i for i in manifest.values() if i["media_type"] == "application/x-dtbncx+xml"), None)
     if ncx:
         ncx_path = resolve(ncx["href"])
         ncx_bytes = read(ncx_path)
         if ncx_bytes:
-            return _parse_ncx(ncx_bytes, posixpath.dirname(ncx_path))
-    return []
+            entries = _parse_ncx(ncx_bytes, posixpath.dirname(ncx_path))
+            if entries:
+                return entries
+
+    return _fallback_toc_from_spine(opf, manifest, resolve, read)
+
+
+def _fallback_toc_from_spine(opf, manifest, resolve, read) -> list[TocEntry]:
+    """Fallback de TOC para EPUB con `navMap` y `nav` vacíos.
+
+    Los libros generados por editoriales o herramientas sueltas pueden declarar un `toc.ncx`
+    sin `navPoint` y sin un `nav` en el manifest. Cuando eso sucede, el parser debe al menos
+    producir una lista de capítulos sintética a partir del `spine`, usando el primer `h1-h3`
+    del fichero XHTML o el `<title>` documental como título de entrada.
+    """
+    fallback: list[TocEntry] = []
+    for ref in opf.xpath("//opf:spine/opf:itemref", namespaces=NS):
+        item_id = ref.get("idref")
+        if ref.get("linear", "yes") == "no" or item_id not in manifest:
+            continue
+        item = manifest[item_id]
+        if not re.search(r"html|xml", item["media_type"], re.I):
+            continue
+        full = resolve(item["href"])
+        html = read(full)
+        if html is None:
+            continue
+        title = _first_heading(html)
+        if not title:
+            soup = BeautifulSoup(html, "lxml")
+            title = " ".join(soup.title.get_text(" ").split()) if soup.title else None
+        if not title:
+            title = Path(full).stem
+        fallback.append(TocEntry(href=full, fragment=None, title=title, depth=1))
+    return fallback
 
 
 def _split_href(base: str, href: str) -> tuple[str, str | None]:

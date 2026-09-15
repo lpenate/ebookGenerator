@@ -89,7 +89,7 @@ def synthesize(
     log(f"Cargando XTTS v2 en [bold]{engine.device}[/bold]…")
     t0 = time.time()
     engine.load()
-    log(f"Modelo listo en {time.time() - t0:.1f}s. Hablante: {engine.speaker or engine.speaker_wav}, idioma: {engine.language}")
+    log(f"Modelo listo en {time.time() - t0:.1f}s en [bold]{engine.device_label}[/bold]. Hablante: {engine.speaker or engine.speaker_wav}, idioma: {engine.language}")
 
     for chapter in targets:
         base = chapter_basename(chapter, len(book.chapters))
@@ -152,7 +152,7 @@ def write_manifest(book: Book, out: Path, options: PipelineOptions, engine: Xtts
         "source": str(options.epub_path.resolve()),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "engine": "xtts_v2",
-        "device": engine.device if engine else None,
+        "device": engine.device_label if engine else None,
         "speaker": (engine.speaker or engine.speaker_wav) if engine else None,
         "cover": cover_path_for(book, out).name if book.cover else None,
         "audiobook": audiobook.name if audiobook else None,

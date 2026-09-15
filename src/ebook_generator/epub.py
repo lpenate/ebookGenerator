@@ -2,7 +2,8 @@
 
 Recorre container.xml -> OPF -> spine, lee la tabla de contenidos (nav o NCX) y localiza la portada.
 Cuando varios capítulos comparten un mismo fichero XHTML (típico en Project Gutenberg), el fichero
-se divide en las anclas a las que apunta la tabla de contenidos.
+se divide en las anclas a las que apunta la tabla de contenidos. Si el índice apunta a una página
+que solo contiene el rótulo de una parte, ese título se aplica al fichero de contenido siguiente.
 """
 from __future__ import annotations
 
@@ -101,6 +102,7 @@ def extract_epub(path: str | Path, min_words: int = 100, toc_depth: int = 1) -> 
 
         chapters: list[Chapter] = []
         skipped: list[tuple[str, str, int]] = []
+        pending_title: str | None = None
 
         def add(title: str, href: str, text: str) -> None:
             words = count_words(text)
@@ -108,7 +110,9 @@ def extract_epub(path: str | Path, min_words: int = 100, toc_depth: int = 1) -> 
                 skipped.append((href, title, words))
                 return
             index = len(chapters) + 1
-            chapters.append(Chapter(index=index, title=title or f"Capítulo {index}", href=href, text=text, words=words))
+            chapters.append(
+                Chapter(index=index, title=humanize_chapter_title(title, index), href=href, text=text, words=words)
+            )
 
         def continue_previous(text: str) -> bool:
             """Texto sin entrada en el índice ni encabezado propio: es la continuación del capítulo anterior."""
@@ -118,6 +122,33 @@ def extract_epub(path: str | Path, min_words: int = 100, toc_depth: int = 1) -> 
             last.text = f"{last.text}\n\n{text}".strip()
             last.words = count_words(last.text)
             return True
+
+        def ingest(title: str, href: str, html_bytes: bytes, listed: bool) -> None:
+            """Clasifica un bloque de XHTML como capítulo, continuación, rótulo o preliminares."""
+            nonlocal pending_title
+            heading = _first_heading(html_bytes)
+            text = html_to_text(html_bytes)
+            words = count_words(text)
+            label = title or heading or ""
+
+            if words < min_words:
+                if heading and label:
+                    pending_title = label
+                skipped.append((href, label, words))
+                return
+
+            if not listed and heading is None:
+                if pending_title:
+                    add(pending_title, href, text)
+                    pending_title = None
+                    return
+                if continue_previous(text):
+                    return
+                skipped.append((href, label or Path(href).name, words))
+                return
+
+            add(label, href, text)
+            pending_title = None
 
         selected = [e for e in toc if e.depth <= max(1, toc_depth)]
         for item in spine:
@@ -131,16 +162,9 @@ def extract_epub(path: str | Path, min_words: int = 100, toc_depth: int = 1) -> 
             anchored = [e for e in entries if e.fragment]
             if len(entries) >= 2 and anchored:
                 for title, segment, listed in _split_by_anchors(html, entries):
-                    text = html_to_text(segment)
-                    if not listed and _first_heading(segment) is None and continue_previous(text):
-                        continue
-                    add(title, full, text)
+                    ingest(title, full, segment, listed)
             else:
-                heading = _first_heading(html)
-                text = html_to_text(html)
-                if not entries and toc and heading is None and continue_previous(text):
-                    continue
-                add((entries[0].title if entries else None) or heading or "", full, text)
+                ingest(entries[0].title if entries else "", full, html, listed=bool(entries))
 
     return Book(meta=meta, chapters=chapters, skipped=skipped, cover=cover)
 
@@ -341,3 +365,14 @@ def html_to_text(html: bytes) -> str:
 
 def count_words(text: str) -> int:
     return len(text.split())
+
+
+_NUMERIC_TITLE = re.compile(r"^\d+$")
+
+
+def humanize_chapter_title(title: str, index: int) -> str:
+    """Convierte títulos que son solo un número en «Capítulo N»."""
+    cleaned = " ".join(title.split()) if title else ""
+    if _NUMERIC_TITLE.fullmatch(cleaned):
+        return f"Capítulo {cleaned}"
+    return cleaned or f"Capítulo {index}"

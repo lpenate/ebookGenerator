@@ -5,3 +5,5 @@ out/
 .env
 *.log
 .DS_Store
+
+epub-sample/
